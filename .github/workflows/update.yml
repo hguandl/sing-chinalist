@@ -1,0 +1,39 @@
+name: Update
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 0 * * *"
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Setup sing-box
+        run: bash <(curl -fsSL https://sing-box.app/deb-install.sh)
+      - name: Download domain list
+        run: |
+          curl -fsSLOJ https://github.com/felixonmars/dnsmasq-china-list/raw/master/accelerated-domains.china.conf
+          curl -fsSLOJ https://github.com/felixonmars/dnsmasq-china-list/raw/master/apple.china.conf
+          curl -fsSLOJ https://github.com/felixonmars/dnsmasq-china-list/raw/master/google.china.conf
+      - name: Generate rule sets
+        run: |
+          python3 convert.py accelerated-domains.china.conf chinalist-general.json
+          python3 convert.py apple.china.conf chinalist-apple.json
+          python3 convert.py google.china.conf chinalist-google.json
+      - name: Compile rule sets
+        run: |
+          sing-box rule-set compile chinalist-general.json -o chinalist-general.srs
+          sing-box rule-set compile chinalist-apple.json -o chinalist-apple.srs
+          sing-box rule-set compile chinalist-google.json -o chinalist-google.srs
+      - name: Upload rule sets
+        run: |
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch --orphan rule-set
+          git add chinalist-general.srs chinalist-apple.srs chinalist-google.srs
+          git commit -m "Update rule sets"
+          git push -f -u origin rule-set
